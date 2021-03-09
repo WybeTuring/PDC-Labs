@@ -1,3 +1,13 @@
+/*
+* This code is submitted as answers to the Parallel and Distributed Computing Lab 2
+* Author: Ndze'dzenyuy, Lemfon K.
+* Date: 6th March 2021
+* Instructions: This code calculates the transpose of a matrix using three main approaches: a naive and an optimised approach using OpenMP and an optimised approach
+* using Pthreads. 
+* To compile the program, run:  gcc -g -Wall -fopenmp -o lab2 lab2.c -lpthread 
+* To run the program, use: ./lab2 <size of the matrix> <1 to print transpose, 0 not to print>
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
@@ -17,8 +27,8 @@ int ** create_matrix(int dim);
 // OpenMP algorithms 
 
 // Naive OpenMP algorithms 
-int ** naive_openmp(int **mat, int dim);
-int ** diag_openmp(int **mat, int dim);
+void naive_openmp(int **mat, int dim);
+void diag_openmp(int **mat, int dim);
 
 // PThread algorithms 
 void diag_pthreads(int **mat, int dim);
@@ -26,23 +36,63 @@ void* pth_diag(void* rank);
 
 
 
-int main(){
+int main(int argc, char* argv[]){
+    if(argc != 3){
+        printf("Please make sure that you are entering the dimension of the matrix and 1 if you want to print out the matrix, 0 otherwise. Please be warned that for large matrix sizes, printing may be hard to read.");
+        return 0;
+    }
+    else{
+        // Getting the dimension of the matrix from the command line
+        dim = strtol(argv[1], NULL, 10);
+        int print = strtol(argv[2], NULL, 10);
 
-    int ** t = create_matrix(4);
-    print_matrix(t,4);
-    puts("\n");
+        mat = create_matrix(dim);
+        if(print){
+            printf("The matrix generated using random numbers is presented below:\n");
+            print_matrix(mat,dim);
+            puts("\n");
+        }else{
+           printf("The matrix has been generated!\n"); 
+           puts("\n");
+        }
+        
 
-    /*
-    print_matrix(naive_openmp(t,4),4);
-    puts("\n");
-    print_matrix(diag_openmp(t,4),4);
-    */
+        //Transposing the matrix using the naive openmp approach
+        clock_t begin = clock();
+        naive_openmp(mat,dim);
+        clock_t end = clock();
+        double time_used = (double)(end - begin) / CLOCKS_PER_SEC;
+        if(print){
+            print_matrix(mat,dim);
+        }
+        //Because the transposing was done in place, we have to redo it to get the original matrix
+        naive_openmp(mat,dim);
+        printf("To transpose the matrix with the naive approach and OpenMP we used %f seconds\n\n", time_used);
 
-    // The pthreads section
-    mat = t;
-    dim = 4;
-    diag_pthreads(mat,dim);
-    print_matrix(mat,dim);
+        //Transposing the matrix using the diagonal threads approach and OpenMP
+        begin = clock();
+        diag_openmp(mat,dim);
+        end = clock();
+        time_used = (double)(end - begin) / CLOCKS_PER_SEC;
+        //Because the transposing was done in place, we have to redo it to get the original matrix
+        if(print){
+            print_matrix(mat,dim);
+        }
+        diag_openmp(mat,dim);
+        printf("To transpose the matrix with the diagonal threads approach and OpenMP we used %f seconds\n\n", time_used);
+
+        //Transposing the matrix using the diagonals approach and PThreads
+        begin = clock();
+        diag_pthreads(mat,dim);
+        end = clock();
+        time_used = (double)(end - begin) / CLOCKS_PER_SEC;
+        //Because the transposing was done in place, we have to redo it to get the original matrix
+        if(print){
+            print_matrix(mat,dim);
+        }
+        diag_pthreads(mat,dim);
+        printf("To transpose the matrix with the diagonal threads approach and PThreads we used %f seconds\n\n", time_used);
+    }
 
 
 }
@@ -74,14 +124,14 @@ int ** create_matrix(int dim){
 void print_matrix(int **mat, int dim){
     for(int i = 0; i < dim; i++){
         for(int j = 0; j < dim; j++){
-            printf("%d  ", mat[i][j]);
+            printf("%-5d  ", mat[i][j]);
         }
         printf("\n");
     }
 }
 
 // This function transposes the matrix using the naive algorithm
-int ** naive_openmp(int **mat, int dim){
+void naive_openmp(int **mat, int dim){
     # pragma omp parallel for num_threads(dim)
     for(int i = 0; i < dim; i++){
         # pragma omp parallel for num_threads(dim)
@@ -91,11 +141,10 @@ int ** naive_openmp(int **mat, int dim){
             mat[j][i] = temp; 
         }
     }
-    return mat;
 }
 
 // This function transposes the matrix using the diagonal threads approach.
-int ** diag_openmp(int **mat, int dim){
+void diag_openmp(int **mat, int dim){
     # pragma omp parallel for num_threads(dim)
     for(int i = 0; i < dim; i++){
         for(int j = i; j < dim; j++){
@@ -104,7 +153,6 @@ int ** diag_openmp(int **mat, int dim){
             mat[j][i] = temp;
         }
     }
-    return mat;
 }
 
 // This function transposes the matrix by using the diagonal threads approach and pthreads.
