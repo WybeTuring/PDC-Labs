@@ -25,14 +25,15 @@ void print_matrix(int **mat, int dim);
 int ** create_matrix(int dim);
 
 // OpenMP algorithms 
-
-// Naive OpenMP algorithms 
 void naive_openmp(int **mat, int dim);
 void diag_openmp(int **mat, int dim);
 
 // PThread algorithms 
 void diag_pthreads(int **mat, int dim);
 void* pth_diag(void* rank);
+
+//Basic algorithm
+void transpose_basic(int **mat, int dim);
 
 
 
@@ -56,12 +57,23 @@ int main(int argc, char* argv[]){
            puts("\n");
         }
         
-
-        //Transposing the matrix using the naive openmp approach
+        //Transposing the matrix using the basic approach
         clock_t begin = clock();
-        naive_openmp(mat,dim);
+        transpose_basic(mat,dim);
         clock_t end = clock();
         double time_used = (double)(end - begin) / CLOCKS_PER_SEC;
+        if(print){
+            print_matrix(mat,dim);
+        }
+        //Because the transposing was done in place, we have to redo it to get the original matrix
+        transpose_basic(mat,dim);
+        printf("To transpose the matrix with the basic approach we used %f seconds\n\n", time_used);
+
+        //Transposing the matrix using the naive openmp approach
+        begin = clock();
+        naive_openmp(mat,dim);
+        end = clock();
+        time_used = (double)(end - begin) / CLOCKS_PER_SEC;
         if(print){
             print_matrix(mat,dim);
         }
@@ -97,6 +109,7 @@ int main(int argc, char* argv[]){
 
 }
 
+
 // This function takes in an integer and returns a two dimensional array that has the elements randomly generated.
 int ** create_matrix(int dim){
 
@@ -130,11 +143,21 @@ void print_matrix(int **mat, int dim){
     }
 }
 
+// This function transposes a matrix using the basic approach i.e no multithreading
+void transpose_basic(int **mat, int dim){
+    for(int i = 0; i < dim; i++){
+        for(int j = 0; j < i; j++){
+            int temp = mat[i][j];
+            mat[i][j] = mat[j][i];
+            mat[j][i] = temp; 
+        }
+    }
+}
+
 // This function transposes the matrix using the naive algorithm
 void naive_openmp(int **mat, int dim){
     # pragma omp parallel for num_threads(dim)
     for(int i = 0; i < dim; i++){
-        # pragma omp parallel for num_threads(dim)
         for(int j = 0; j < i; j++){
             int temp = mat[i][j];
             mat[i][j] = mat[j][i];
