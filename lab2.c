@@ -2,7 +2,7 @@
 * This code is submitted as answers to the Parallel and Distributed Computing Lab 2
 * Author: Ndze'dzenyuy, Lemfon K.
 * Date: 6th March 2021
-* Instructions: This code calculates the transpose of a matrix using three main approaches: a naive and an optimised approach using OpenMP and an optimised approach
+* Instructions: This code calculates the transpose of a matrix using four main approaches: a unthreaded naive approach, naive and an optimised approach using OpenMP and an optimised approach
 * using Pthreads. 
 * To compile the program, run:  gcc -g -Wall -fopenmp -o lab2 lab2.c -lpthread 
 * To run the program, use: ./lab2 <size of the matrix> <1 to print transpose, 0 not to print>
