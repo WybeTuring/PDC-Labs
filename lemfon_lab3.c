@@ -13,7 +13,7 @@
 #include <math.h>
 #include <time.h>
 
-#define dim 6        /* dimensions of the matrixes */
+//#define dim 4    /* dimensions of the matrixes */
 #define master 0            
 #define master_message 1    // Tag that will be put on the messages from the master process carrying parts of the matrices   
 #define worker_message 2        // Tag that will be put on the messages from the worker processes carrying results.
@@ -30,10 +30,9 @@ int ** multiply_seq(int **A, int **B, int a_rows, int a_cols, int b_rows, int b_
 void print_nonsquare(int **mat, int rows, int cols);
 int ** get_division_rows(int **A, int dimension, int start, int end);
 int * matrix_linearize(int **mat, int rows, int cols);
-int * matrix_linearize_col(int **mat, int rows, int cols);
-int **vec_to_array(int *vec, int l, int rows, int cols);
 void printvector(int *vec, int l);
 int * allocvector(int vec_size);
+int **vec_to_array(int *vec, int l, int rows, int cols);
 
 // The struct that will tell the master processor at which index to start placing the code it recieved
 struct start_location {
@@ -44,7 +43,7 @@ struct start_location {
 int main (int argc, char *argv[]){
 
     int	numprocs, my_rank, numworkers, source, dest, mtype, rows;   // Declaring some useful variables
-    int n = dim;
+    int n = atoi(argv[1]);
     int	i, j, k, rc; 
     int	**a, **b, **c;  
     MPI_Status status;
@@ -61,21 +60,28 @@ int main (int argc, char *argv[]){
     MPI_Type_create_struct(2, lengths, displacements, types, &position_type);
     MPI_Type_commit(&position_type);
 
+
     if (numprocs < 2 ) {
         printf("Sorry, but we will need more than 2 processes to do this multiplication. \n");
         MPI_Abort(MPI_COMM_WORLD, rc);
         exit(1);
     }
-    int temp = sqrt(numprocs - 1); 
-    if(n % temp != 0){
+
+    // Here we check if the number of processes is a number whose square root is divisible by the dimension.
+    double rt_temp = sqrt(numprocs - 1); 
+    if(fmod(n,rt_temp) != 0){
+        if(my_rank == master){
         printf("Because n is %d, you can only run this program with the following number or processes: ", n);
         determine_valid_procs(n);
+        printf(". \nPlease note that 1 process will always act as the master process. So for example, if you said you want to use 5 processes, 4 will be used for the calculations and 1 will be a master process.\n");
         MPI_Abort(MPI_COMM_WORLD, rc);
         exit(1);
+        }
     }
 
     numworkers = numprocs-1;
-    int rt_p = 3; // Square root of 9.
+    //int rt_p = 3; // Square root of 9.
+    int rt_p = (int) sqrt(numprocs - 1);
     int group_size = n / rt_p; // The sizes of the blocks that will be sent
     int buffer_size = group_size * n; // The size of the buffer that will be sent
 
@@ -106,16 +112,12 @@ int main (int argc, char *argv[]){
         
         // Sending the rows of matrix A as needed.
         int **subRows = get_division_rows(a, n, row, row + group_size - 1);
-        //printf("Sending to process, %d\n", dest);
-        //print_nonsquare(subRows, group_size, n);
         int *subRowsFinal = matrix_linearize(subRows, group_size, n);
         MPI_Send(&(subRowsFinal[0]), buffer_size, MPI_INT, dest, 10, MPI_COMM_WORLD);
         
         //Sending the columns of matrix B as needed.
         int **subCols = get_division_cols(b, n, col, col + group_size - 1);
-        //printf("Sending to process, %d\n", dest);
-        //print_nonsquare(subCols, n, group_size);
-        int *subColsFinal = matrix_linearize_col(subCols, n, group_size);
+        int *subColsFinal = matrix_linearize(subCols, n, group_size);
         MPI_Send(&(subColsFinal[0]), buffer_size, MPI_INT, dest, 4, MPI_COMM_WORLD);
       }
 
@@ -128,11 +130,13 @@ int main (int argc, char *argv[]){
          MPI_Recv(&(y[0]), group_size * group_size, MPI_INT, incoming, 5, MPI_COMM_WORLD, &status);
          struct start_location p_start;
          MPI_Recv(&p_start, 1, position_type, incoming, 15, MPI_COMM_WORLD, &status);
-         printvector(y, group_size * group_size);
-         printf("From process %d: Which starts at row index %d and column index %d.\n", i, p_start.x_start, p_start.y_start);
+
+         int **mini_res = vec_to_array(y, group_size * group_size, group_size, group_size);
+         printf("From process %d: Whose block size starts at row index %d and column index %d.\n", i, p_start.x_start, p_start.y_start);
+         print_matrix(mini_res, group_size, i);
 
          //Putting the various answers in their appropriate positions in matrix C.
-         int **mini_res = vec_to_array(y, group_size * group_size, group_size, group_size);
+         
          for(int m = 0; m < group_size; m++){
              for(int n = 0; n < group_size; n++){
                  c[p_start.x_start + m][p_start.y_start + n] = mini_res[m][n];
@@ -140,12 +144,20 @@ int main (int argc, char *argv[]){
          }
       }
 
-      //Printing C, the final result.
-      print_matrix(c, n, 'C');
-
       /* Measure finish time */
-      double finish = MPI_Wtime();
-      printf("Done in %f seconds.\n", finish - start);
+      double finish = MPI_Wtime();  
+
+      //Printing C, the final result.
+      printf("\nThe final result is obtained.\n");
+      print_matrix(c, n, 'C');
+      printf("\nThe parallel computation was done in %f seconds.\n", finish - start);
+
+      // Doing the serial computation.
+      clock_t begin = clock();
+      int **D = multiply_seq(a,b, n, n, n, n);
+      clock_t end = clock();
+      printf("The serial computation was done in %f seconds.\n", (double)(end - begin) / CLOCKS_PER_SEC);
+
    }
 
 
@@ -213,6 +225,7 @@ int ** create_matrix(int dimension){
     for(int i = 0; i < dimension; i++){
         for(int j = 0; j < dimension; j++){
             matrix[i][j] = (rand() % 100) + 1 ;
+            //matrix[i][j] = 2;
         }
 
     }
@@ -308,11 +321,10 @@ int ** multiply_seq(int **A, int **B, int a_rows, int a_cols, int b_rows, int b_
     }
 
     // Carrying out the multiplication
-    int i, j, k;
-    for(i = 0; i < a_rows; i++){
-        for(j = 0; j < b_cols; j++){
+    for(int i = 0; i < a_rows; i++){
+        for(int j = 0; j < b_cols; j++){
             C[i][j] = 0;
-            for(k = 0; k < a_cols; k++){
+            for(int k = 0; k < a_cols; k++){
                 C[i][j] = C[i][j] + (A[i][k] * B[k][j]);
             }
         }
@@ -360,37 +372,18 @@ int * matrix_linearize(int **mat, int rows, int cols){
     return temp;
 }
 
-/* Because columns are often going to be different, we need a special function to linearize a matrix in a way suitable for columns */
-int * matrix_linearize_col(int **mat, int rows, int cols){
-    int *temp = (int *)malloc(rows * cols * sizeof(int));
-    int k = 0;
-    for(int i = 0; i < cols; i++){
-        for(int j = 0; j < rows; j++){
-            temp[k] = mat[j][i];
-            k++;
-        }
-    }
-    return temp;
-}
-
-/* This function takes a matrix and returns an array. Becuase we linearized columns already in a way that standardizes them, we do not 
-*   to build a unique function for columns.
-*/
-int **vec_to_array(int *vec, int l, int rows, int cols){
-    int **temp = (int **) malloc(rows * sizeof(int *));
-    for (int i = 0; i < rows; i++) {
-        temp[i] = (int *) malloc(cols * sizeof(int));
-    }
-    for(int i = 0; i < l; i++){
-        int r = i / rows;
-        int c = i % rows;
-        temp[c][r] = vec[i];
-    }
-    return temp;
-}
-
 /* This function allocates space for a vector dynamically*/
 int * allocvector(int vec_size){
     int *temp = (int *)malloc(vec_size * sizeof(int));
+    return temp;
+}
+
+int **vec_to_array(int *vec, int l, int rows, int cols){
+    int **temp = allocarray(rows, cols);
+    for(int i = 0; i < l; i++){
+        int r = i / cols;
+        int c = i % cols;
+        temp[r][c] = vec[i];
+    }
     return temp;
 }
