@@ -11,4 +11,4 @@ Clone the repository and check out the branch named lab3.
 
 - Checkout the branch named lab3
 - Compile the code using the command ``mpicc lemfon_lab3.c -o lab3 -lm``. 
-- Run the code using the command ``mpiexec -n p ./lab3 i`` where p is the number of processes and i is the dimension of the matrix desired.
+- Run the code using the command ``mpiexec -n p ./lab3 i`` where p is the number of processes and i is the dimension of the matrix desired. Please note that when entering p, we enter the number of desired worker processes and one master process. For example, if we had n = 6, and we wanted to use 9 worker processes, we will enter 10 instead. This ensures that one of the process is used as a master process. 
